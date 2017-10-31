@@ -1,0 +1,171 @@
+---
+title: "Assignment 3"
+author: "Zhulin Yu"
+date: "10/26/2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Load Libraries
+```{r libraries}
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+```
+
+# Part I
+## Import data and remove rows with NAs
+```{r data}
+K1 <- read.csv("Class_Motivation.csv")
+K2 <- dplyr::select(K1, 2:6)
+K3_ori <- na.omit(K2) #This command create a data frame with only those people with no missing values. It "omits" all rows with missing values, also known as a "listwise deletion". EG - It runs down the list deleting rows as it goes.
+```
+
+## K-means Clustering with cluster # = 2
+
+First, we need to standardize the motivation scores. Then use "kmeans" to cluster.
+```{r K-means}
+K3 <- scale(K3_ori)
+fit <- kmeans(K3, 2)
+#We have created an object called "fit" that contains all the details of our clustering including which observations belong to each cluster.
+
+#We can access the list of clusters by typing "fit$cluster", the top row corresponds to the original order the rows were in. Notice we have deleted some rows.
+fit$cluster
+```
+
+## Visualize the scaled motivation scores
+```{r viz scaled scores}
+#We can also attach these clusters to te original dataframe by using the "data.frame" command to create a new data frame called K4.
+K4 <- data.frame(K3, fit$cluster)
+
+#Have a look at the K4 dataframe. Lets change the names of the variables to make it more convenient with the names() command.
+
+names(K4) <- c("1", "2", "3", "4", "5", "cluster") #c() stands for concatonate and it creates a vector of anything, in this case a vector of names.
+
+K5 <- tidyr::gather(K4, "week", "motivation", 1:5)
+K6 <- K5 %>% group_by(week, cluster)
+K6 <- summarise(K6, avg = mean(motivation))
+
+K6$week <- as.numeric(K6$week)
+K6$cluster <- as.factor(K6$cluster)
+
+ggplot(K6, aes(week, avg, colour = cluster)) + geom_line() + xlab("Week") + ylab("Average Motivation")
+
+#K7 <- dplyr::count(K4, cluster)
+```
+
+# Visualize the original motivation scores instead of scaled scores
+```{r viz}
+K4_ori = data.frame(K3_ori, fit$cluster)
+names(K4_ori) <- c("1", "2", "3", "4", "5", "cluster")
+
+K5_ori <- tidyr::gather(K4_ori, "week", "motivation", 1:5)
+K6_ori <- K5_ori %>% group_by(week, cluster)
+K6_ori <- summarise(K6_ori, avg = mean(motivation))
+
+K6_ori$week <- as.numeric(K6_ori$week)
+K6_ori$cluster <- as.factor(K6_ori$cluster)
+
+ggplot(K6_ori, aes(week, avg, colour = cluster)) + geom_line() + xlab("Week") + ylab("Average Motivation")
+```
+## And we can see how many people are in each cluster.
+```{r}
+K7 <- dplyr::count(K4, cluster)
+K7
+```
+
+## Now we generate 3 clusters instead of 2. And we visualize the original motivation scores.
+```{r 3 clusters}
+fit <- kmeans(K3, 3)
+fit$cluster
+
+K4_ori = data.frame(K3_ori, fit$cluster)
+names(K4_ori) <- c("1", "2", "3", "4", "5", "cluster")
+K5_ori <- tidyr::gather(K4_ori, "week", "motivation", 1:5)
+K6_ori <- K5_ori %>% group_by(week, cluster)
+K6_ori <- summarise(K6_ori, avg = mean(motivation))
+
+K6_ori$week <- as.numeric(K6_ori$week)
+K6_ori$cluster <- as.factor(K6_ori$cluster)
+
+ggplot(K6_ori, aes(week, avg, colour = cluster)) + geom_line() + xlab("Week") + ylab("Average Motivation")
+```
+
+It seems the 3-cluster grouping is more informative. The cluster 2 in the 2-cluster grouping is splitted into cluster 1 & 2 in the 3-cluster grouping: cluster 1 indicates quite stable motivation scores across weeks, at about 2.1, and cluster 2 indicates relatively low motivation in the beginning 4 weeks, at about 1.
+
+# Part II
+## Import data
+```{r}
+D1 = read.csv("cluster-class-data.csv")
+```
+
+## One way to "cluster" upon region is by longitude and latitude. Though this approach could not consider country boundaries, which significantly separate adjecent places, it is an objective approach and could be done automatically by fetching data from the Internet. I get the following longitudes and latitudes from https://www.latlong.net/.
+```{r Add lon and lat to data}
+D1$lat = c(21.027764, 37.566535, 42.293573, 31.230390, 22.543096, 36.651200, -33.015348, 39.136772, 35.088696, 24.479833, 30.438256, 29.868336, 22.543096, 28.704059, 40.712775, 23.020673, 21.306944, 39.904200, 41.141472, 39.961176, 40.892321, 50.266047)
+
+D1$lon = c(105.834160, 126.977969, -71.305928, 121.473702, 114.057865, 117.120095, -71.550028, -77.714715, -92.442101, 118.089425, -84.280733, 121.543990, 114.057865, 77.102490, -74.005973, 113.751799, -157.858333, 116.407396, -73.357905, -82.998794, -74.477377, -5.052712)
+```
+
+Then we standardize all data:
+```{r Clustering upon lon and lat}
+D2 <- dplyr::select(D1, c(1, 4:13, 17, 18))
+D2$Q3_num[D2$QID3 == "No"] = 0
+D2$Q3_num[D2$QID3 == "Yes"] = 1
+D2$Q4_num[D2$QID4 == "g-iff"] = 0
+D2$Q4_num[D2$QID4 == "j-iff"] = 1
+D2 = dplyr::select(D2, -c(QID3, QID4))
+D3_ori <- na.omit(D2)
+D3 <- scale(D3_ori)
+```
+
+Now only pick lon and lat data for clustering.
+```{r }
+D3_lon_lat = subset.matrix(D3, select = c(lon, lat))
+fit <- kmeans(D3_lon_lat, 2)
+fit$cluster
+```
+
+Basicall, cluster 1 are South or North American countries, while cluster 2 are Asian countries.
+
+## Then we cluster upon answers to all questions except for region (lon and lat).
+```{r }
+D3_other = subset.matrix(D3, select = -c(lon, lat))
+fit2 <- kmeans(D3_other, 2)
+fit2$cluster
+```
+
+# Part III
+The two clusters generated upon region (lon and lat) are intuitive to interpret as discussed above.
+
+However, it is hard to interpret the two clusters generated upon other answers. Thus, we plot the means of two clusters across all questions:
+```{r Plot means of all answers}
+D4 <- data.frame(D3_other, fit2$cluster)
+
+names(D4) <- c("1", "5", "7", "8", "9", "10", "11", "12", "13", "3", "4", "cluster") #c() stands for concatonate and it creates a vector of anything, in this case a vector of names.
+
+D5 <- tidyr::gather(D4, "Q", "Ans", 1:11)
+D6 <- D5 %>% group_by(Q, cluster)
+D6 <- summarise(D6, avg = mean(Ans))
+
+D6$Q <- as.numeric(D6$Q)
+D6$cluster <- as.factor(D6$cluster)
+
+ggplot(D6, aes(Q, avg, colour = cluster)) + geom_line() + xlab("Question Num.") + ylab("Standardized Average Answer")
+```
+
+The output is quite un-stable, which reflects the weakness of k-means clustering method - sensitive to the starting random points.
+
+## Now we plot students in different colors and shapes depending on which cluster they belong to.
+
+Black = Cluster 1 and Blue = Cluster 2, upon longitude and latitude.
+
+Circle = Cluster 1 and Triangle = Cluster 2, upon other answers.
+
+```{r}
+D_all <- data.frame(row.names(D2), D2, fit$cluster, fit2$cluster)
+D_all$fit2.cluster.f = as.factor(D_all$fit2.cluster)
+ggplot(D_all, aes(row.names.D2., fit2.cluster, colour = fit.cluster, shape = fit2.cluster.f)) + geom_point() + xlab("Question Num.") + ylab("Standardized Average Answer")
+```
